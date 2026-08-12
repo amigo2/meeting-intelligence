@@ -1,0 +1,28 @@
+{
+  "description": "Golden set for the sample_meeting.txt transcript. Ground truth for evaluating Q&A grounding + structured extraction (action items, decisions). Fill/extend as the engine is built.",
+  "qa": [
+    {
+      "question": "When is the launch date?",
+      "expected_answer_contains": ["15th of March"],
+      "expected_source_speakers": ["Ana"]
+    },
+    {
+      "question": "Is SSO in scope for launch?",
+      "expected_answer_contains": ["no", "Q2"],
+      "expected_source_speakers": ["Ana", "David"]
+    }
+  ],
+  "action_items": [
+    { "owner": "Ben", "task_contains": "refund", "due_contains": "two days" },
+    { "owner": "Ben", "task_contains": "monitoring" },
+    { "owner": "Carla", "task_contains": "usability", "due_contains": "Friday" },
+    { "owner": "David", "task_contains": "SSO", "due_contains": "next" }
+  ],
+  "decisions": [
+    { "decision_contains": "launch on the 15th of March" },
+    { "decision_contains": "SSO goes to the Q2 backlog" }
+  ],
+  "refusal_probes": [
+    "What is the marketing budget for the launch?"
+  ]
+}

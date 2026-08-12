@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+boto3
+pydantic
+pydantic-settings
+python-dotenv
+psycopg[binary]
+pgvector
+pytest

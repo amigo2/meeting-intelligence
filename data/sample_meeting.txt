@@ -1,0 +1,15 @@
+[00:00] Ana (PM): Thanks everyone for joining. Today we need to decide the launch date for the mobile app and sort out the payments integration.
+[00:14] Ben (Eng): On payments — I finished the Stripe integration last week, but the refund flow still has a bug when the amount is partial. I'd need two more days to fix it properly.
+[00:31] Ana (PM): Okay. So can we still hit the 15th of March for launch?
+[00:36] Ben (Eng): If the refund fix takes two days, yes, we're fine for the 15th. Just tight.
+[00:44] Carla (Design): One concern — the onboarding screens haven't been tested with real users yet. I'd like to run a quick usability session before we lock the flow.
+[00:58] Ana (PM): Good point. Carla, can you run the usability session this week?
+[01:03] Carla (Design): Yes, I'll set it up for Thursday and share findings on Friday.
+[01:10] Ana (PM): Great. Decision: we launch on the 15th of March, assuming the refund fix and usability session both land this week.
+[01:19] Ben (Eng): Agreed. I'll also add monitoring on the payments endpoint so we catch errors before users do.
+[01:27] David (Sales): From the sales side — two enterprise clients asked about SSO. It's not in scope for launch, but we should note it for the next quarter.
+[01:38] Ana (PM): Noted, SSO goes to the Q2 backlog, not launch. David, can you write up the two clients' requirements?
+[01:46] David (Sales): Will do, I'll have it ready by end of next week.
+[01:52] Ana (PM): Perfect. To summarise the actions: Ben fixes the refund bug and adds payments monitoring, Carla runs usability Thursday and reports Friday, David documents the SSO requirements by next Friday. Launch is the 15th. Anything else?
+[02:08] Ben (Eng): Nothing from me.
+[02:10] Ana (PM): Thanks all.
