@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # AWS Bedrock (London / eu-west-2 for UK/EU data residency)
     aws_region: str = "eu-west-2"
-    bedrock_llm_model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    bedrock_llm_model_id: str = "eu.anthropic.claude-sonnet-4-5-20250929-v1:0"
     bedrock_embed_model_id: str = "amazon.titan-embed-text-v2:0"
 
     # Database (local docker-compose default; Aurora URL in prod)
