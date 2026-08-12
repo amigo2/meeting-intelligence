@@ -11,8 +11,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # AWS Bedrock
-    aws_region: str = "us-east-1"
+    # AWS Bedrock (London / eu-west-2 for UK/EU data residency)
+    aws_region: str = "eu-west-2"
     bedrock_llm_model_id: str = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     bedrock_embed_model_id: str = "amazon.titan-embed-text-v2:0"
 
