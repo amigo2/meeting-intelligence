@@ -45,6 +45,15 @@ docker compose up --build     # Postgres+pgvector + FastAPI
 ## How I used AI tools
 <!-- Claude Code workflow: do's/don'ts, how I keep it repeatable & reviewed -->
 
+## Known limitations (deliberate, at demo scale)
+Surfaced by an AI code-review pass; correctness issues fixed, these documented:
+- **Filtered vector search:** HNSW ranks globally then filters by `meeting_id`, so at
+  large scale a scoped query could miss best chunks — fix with `hnsw.iterative_scan`
+  or per-tenant partial indexes.
+- **No connection pooling** (add `psycopg_pool` for production concurrency).
+- **Sequential embeddings** (parallelise for large transcripts).
+- **Lazy Bedrock client** not lock-guarded (harmless; guard if needed).
+
 ## What I'd do differently with more time
 <!-- honest next steps -->
 

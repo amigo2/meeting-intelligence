@@ -41,6 +41,28 @@ Running record of key technical decisions and why — feeds the README's
   routes are thin wrappers. Core is unit-testable without HTTP; could put a CLI or
   queue worker in front of the same logic.
 
+## Known limitations & productionization (deliberate, documented)
+Surfaced by a code-review pass; fine at demo scale, flagged for production. This is
+"standards skipped" done on purpose, with the fix path known.
+
+1. **Filtered vector search (HNSW + `meeting_id`).** pgvector's HNSW finds the
+   globally-nearest chunks first, then the `WHERE meeting_id` filter is applied — so
+   with many meetings a scoped query could miss a meeting's best chunks. Fine now
+   (small corpus). Fix: `hnsw.iterative_scan` (pgvector 0.8+), a partial/partitioned
+   index per tenant, or pre-filtering.
+2. **No connection pooling.** Each store/search opens a fresh psycopg connection.
+   Fine for a demo; under real concurrency add `psycopg_pool` to avoid per-call
+   connect latency and connection exhaustion.
+3. **Sequential embeddings.** Titan embeds one input per call, and we issue them
+   serially — a large transcript blocks proportional to chunk count. Fix: issue the
+   calls concurrently (thread pool / async) or batch offline.
+4. **Lazy Bedrock client not synchronized.** Concurrent first calls could each build
+   a client (harmless, wasteful). Fix: guard with a lock if it matters.
+
+Correctness issues from the same pass were **fixed**: role whitespace trimmed;
+ingest now refuses an empty parse and does an **atomic** delete+insert so a bad
+re-ingest can't wipe existing data; added skipping live-dependency tests for the store.
+
 ---
 
 ## Progress log

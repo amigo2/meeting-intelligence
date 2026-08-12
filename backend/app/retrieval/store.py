@@ -47,23 +47,42 @@ def delete_meeting(meeting_id: str) -> None:
         conn.execute("DELETE FROM chunks WHERE meeting_id = %s", (meeting_id,))
 
 
+def _insert_chunks(cur, meeting_id: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
+    for chunk, embedding in zip(chunks, embeddings):
+        cur.execute(
+            "INSERT INTO chunks "
+            "(meeting_id, text, speakers, start_timestamp, end_timestamp, embedding) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            (
+                meeting_id,
+                chunk.text,
+                chunk.speakers,
+                chunk.start_timestamp,
+                chunk.end_timestamp,
+                embedding,
+            ),
+        )
+
+
 def store_chunks(meeting_id: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
-    """Persist each chunk with its embedding."""
+    """Persist each chunk with its embedding (append; does not remove existing rows)."""
     with _connect() as conn, conn.cursor() as cur:
-        for chunk, embedding in zip(chunks, embeddings):
-            cur.execute(
-                "INSERT INTO chunks "
-                "(meeting_id, text, speakers, start_timestamp, end_timestamp, embedding) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (
-                    meeting_id,
-                    chunk.text,
-                    chunk.speakers,
-                    chunk.start_timestamp,
-                    chunk.end_timestamp,
-                    embedding,
-                ),
-            )
+        _insert_chunks(cur, meeting_id, chunks, embeddings)
+
+
+def replace_chunks(meeting_id: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
+    """Atomically replace a meeting's chunks: delete old + insert new in ONE transaction.
+
+    Using a single (non-autocommit) transaction means a failure mid-insert rolls back
+    the delete too — so a re-ingest can never leave the meeting with its old data wiped
+    and no new data in its place.
+    """
+    with psycopg.connect(settings.database_url) as conn:  # autocommit off -> real transaction
+        register_vector(conn)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM chunks WHERE meeting_id = %s", (meeting_id,))
+            _insert_chunks(cur, meeting_id, chunks, embeddings)
+        conn.commit()
 
 
 def search(query_embedding: list[float], meeting_id: str, k: int = 4) -> list[dict]:

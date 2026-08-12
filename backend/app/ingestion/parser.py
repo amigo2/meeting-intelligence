@@ -42,11 +42,12 @@ def parse_transcript(text: str) -> list[Turn]:
         match = _LINE.match(line)
         if match is None:
             continue  # not a well-formed turn line — ignore it
+        role = match.group("role")  # None when the "(Role)" group is absent
         turns.append(
             Turn(
                 timestamp=match.group("timestamp").strip(),
                 speaker=match.group("speaker").strip(),
-                role=match.group("role"),  # None when the "(Role)" group is absent
+                role=role.strip() if role else None,
                 text=match.group("text").strip(),
             )
         )
