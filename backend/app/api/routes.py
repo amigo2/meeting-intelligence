@@ -11,7 +11,7 @@ from app.retrieval.store import get_meeting
 
 router = APIRouter()
 
-DATA = Path(__file__).resolve().parents[3] / "data"
+DATA = Path(__file__).resolve().parents[2] / "data"  # backend/data (ships in the image)
 SAMPLES = {"meeting": "sample_meeting.txt", "realestate": "sample_realestate.txt"}
 
 

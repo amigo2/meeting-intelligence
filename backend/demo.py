@@ -10,7 +10,7 @@ from app.generation.answerer import answer
 from app.ingestion.pipeline import ingest
 from app.retrieval.store import init_db
 
-DATA = Path(__file__).resolve().parents[1] / "data"
+DATA = Path(__file__).resolve().parent / "data"
 
 
 def main() -> None:

@@ -17,7 +17,7 @@ from app.ingestion.pipeline import ingest_meeting
 from app.retrieval.store import init_db
 
 SET = Path(__file__).parent / "robustness_set.json"
-DATA = Path(__file__).resolve().parents[2] / "data"
+DATA = Path(__file__).resolve().parents[1] / "data"
 
 
 def _parse_json(raw: str) -> dict:

@@ -37,7 +37,7 @@ def test_multiword_speaker_and_punctuated_text():
 
 
 def test_parses_both_sample_files():
-    data_dir = Path(__file__).resolve().parents[2] / "data"
+    data_dir = Path(__file__).resolve().parents[1] / "data"
     for name in ("sample_meeting.txt", "sample_realestate.txt"):
         turns = parse_transcript((data_dir / name).read_text(encoding="utf-8"))
         assert len(turns) > 5

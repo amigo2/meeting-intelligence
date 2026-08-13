@@ -47,7 +47,7 @@ def test_no_redundant_tail_and_full_coverage():
 
 
 def test_runs_on_real_transcripts():
-    data_dir = Path(__file__).resolve().parents[2] / "data"
+    data_dir = Path(__file__).resolve().parents[1] / "data"
     for name in ("sample_meeting.txt", "sample_realestate.txt"):
         turns = parse_transcript((data_dir / name).read_text(encoding="utf-8"))
         chunks = chunk_turns(turns)
