@@ -1,5 +1,7 @@
 // Thin API client for the Meeting Intelligence backend.
-const BASE = "http://localhost:8001";
+// Prod: "" (same-origin — CloudFront proxies /meetings/* to the ALB).
+// Dev:  set VITE_API_BASE=http://localhost:8001 (see .env.development).
+const BASE = import.meta.env.VITE_API_BASE ?? "";
 
 export type ActionItem = { owner: string; task: string; due: string | null };
 export type Intelligence = {
