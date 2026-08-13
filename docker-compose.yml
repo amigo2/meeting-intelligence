@@ -8,13 +8,15 @@ services:
       POSTGRES_PASSWORD: meetings
       POSTGRES_DB: meetings
     ports:
-      - "5432:5432"
+      - "5435:5432"   # host 5435 (other local projects use 5433/5434/5436)
     volumes:
       - pgdata:/var/lib/postgresql/data
 
   backend:
     build: ./backend
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false   # backend runs via venv in dev; .env only needed to run it in-compose
     environment:
       DATABASE_URL: postgresql://meetings:meetings@db:5432/meetings
     ports:

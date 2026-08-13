@@ -12,15 +12,23 @@ from app.core.config import settings
 from app.ingestion.chunker import Chunk
 
 
+def _connect_raw() -> psycopg.Connection:
+    """Plain connection — used for DDL, before the vector type may exist."""
+    return psycopg.connect(settings.database_url, autocommit=True)
+
+
 def _connect() -> psycopg.Connection:
-    conn = psycopg.connect(settings.database_url, autocommit=True)
+    """Connection with the pgvector adapter registered (needs the extension to exist)."""
+    conn = _connect_raw()
     register_vector(conn)  # lets us pass/read Python lists as pgvector values
     return conn
 
 
 def init_db() -> None:
     """Create the pgvector extension, the chunks table, and the HNSW index (idempotent)."""
-    with _connect() as conn:
+    # Raw connection: the vector type doesn't exist until CREATE EXTENSION runs, so we
+    # must NOT register the adapter here yet.
+    with _connect_raw() as conn:
         conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
         conn.execute(
             f"""
@@ -81,14 +89,17 @@ def replace_chunks(meeting_id: str, chunks: list[Chunk], embeddings: list[list[f
 
 def search(query_embedding: list[float], meeting_id: str, k: int = 4) -> list[dict]:
     """Return the k chunks most similar to the query (cosine), scoped to one meeting."""
+    # Send the query vector as a literal and cast to `vector`: unlike an INSERT into a
+    # typed column, a query parameter has no column context to infer the type from.
+    vec = "[" + ",".join(map(str, query_embedding)) + "]"
     with _connect() as conn:
         rows = conn.execute(
             "SELECT text, speakers, start_timestamp, end_timestamp, "
-            "1 - (embedding <=> %s) AS similarity "
+            "1 - (embedding <=> %s::vector) AS similarity "
             "FROM chunks WHERE meeting_id = %s "
-            "ORDER BY embedding <=> %s "
+            "ORDER BY embedding <=> %s::vector "
             "LIMIT %s",
-            (query_embedding, meeting_id, query_embedding, k),
+            (vec, meeting_id, vec, k),
         ).fetchall()
     return [
         {

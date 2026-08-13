@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     bedrock_embed_model_id: str = "amazon.titan-embed-text-v2:0"
     embed_dim: int = 1024  # Titan Text Embeddings V2 output size -> pgvector column size
 
-    # Database (local docker-compose default; Aurora URL in prod)
-    database_url: str = "postgresql://meetings:meetings@localhost:5432/meetings"
+    # Database — local docker-compose maps host 5435; Aurora URL via env in prod.
+    database_url: str = "postgresql://meetings:meetings@localhost:5435/meetings"
 
 
 settings = Settings()
