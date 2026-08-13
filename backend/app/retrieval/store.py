@@ -47,6 +47,43 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS chunks_embedding_idx "
             "ON chunks USING hnsw (embedding vector_cosine_ops)"
         )
+        # Meeting-level record: the raw transcript + extracted intelligence (JSON).
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meetings (
+                id           TEXT PRIMARY KEY,
+                title        TEXT,
+                transcript   TEXT NOT NULL,
+                intelligence JSONB NOT NULL
+            )
+            """
+        )
+
+
+def save_meeting(meeting_id: str, title: str, transcript: str, intelligence: dict) -> None:
+    """Upsert a meeting's transcript + extracted intelligence."""
+    import json as _json
+
+    with _connect_raw() as conn:
+        conn.execute(
+            "INSERT INTO meetings (id, title, transcript, intelligence) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (id) DO UPDATE SET "
+            "title = EXCLUDED.title, transcript = EXCLUDED.transcript, "
+            "intelligence = EXCLUDED.intelligence",
+            (meeting_id, title, transcript, _json.dumps(intelligence)),
+        )
+
+
+def get_meeting(meeting_id: str) -> dict | None:
+    """Return {id, title, transcript, intelligence} or None."""
+    with _connect_raw() as conn:
+        row = conn.execute(
+            "SELECT id, title, transcript, intelligence FROM meetings WHERE id = %s",
+            (meeting_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {"id": row[0], "title": row[1], "transcript": row[2], "intelligence": row[3]}
 
 
 def delete_meeting(meeting_id: str) -> None:
