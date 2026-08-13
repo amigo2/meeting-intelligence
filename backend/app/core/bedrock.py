@@ -44,6 +44,23 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     return [embed_text(t) for t in texts]
 
 
+def generate(system_prompt: str, user_prompt: str, max_tokens: int = 1000,
+             temperature: float = 0.0) -> str:
+    """Generate text with Claude via Bedrock's Converse API.
+
+    Converse is Bedrock's unified, model-agnostic chat API — it works with the EU
+    inference profile and keeps the message format simple. temperature=0 for
+    deterministic, grounded answers.
+    """
+    response = _bedrock().converse(
+        modelId=settings.bedrock_llm_model_id,
+        system=[{"text": system_prompt}],
+        messages=[{"role": "user", "content": [{"text": user_prompt}]}],
+        inferenceConfig={"maxTokens": max_tokens, "temperature": temperature},
+    )
+    return response["output"]["message"]["content"][0]["text"]
+
+
 if __name__ == "__main__":
     # First live Bedrock call. Needs AWS creds + Bedrock access.
     #   python -m app.core.bedrock   (run from backend/)

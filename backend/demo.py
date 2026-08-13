@@ -6,8 +6,8 @@ Run from backend/:  python demo.py
 
 from pathlib import Path
 
+from app.generation.answerer import answer
 from app.ingestion.pipeline import ingest
-from app.retrieval.retriever import retrieve
 from app.retrieval.store import init_db
 
 DATA = Path(__file__).resolve().parents[1] / "data"
@@ -20,13 +20,15 @@ def main() -> None:
     n = ingest("meeting-1", transcript)
     print(f"Ingested {n} chunks for meeting-1.\n")
 
-    for question in ("When is the launch date?", "What is Ben responsible for?"):
+    questions = (
+        "When is the launch date?",
+        "What is Ben responsible for?",
+        "What was the marketing budget agreed?",  # not in transcript -> should refuse
+    )
+    for question in questions:
+        result = answer("meeting-1", question)
         print(f"Q: {question}")
-        for hit in retrieve("meeting-1", question, k=3):
-            preview = hit["text"].replace("\n", " ")[:90]
-            print(f"  {hit['similarity']:.3f}  [{hit['start']}-{hit['end']}] "
-                  f"{hit['speakers']}: {preview}...")
-        print()
+        print(f"A: {result['answer']}\n")
 
 
 if __name__ == "__main__":
