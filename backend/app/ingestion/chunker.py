@@ -46,8 +46,6 @@ def chunk_turns(turns: list[Turn], window: int = 4, overlap: int = 1) -> list[Ch
 
     for start in range(0, len(turns), step):
         group = turns[start : start + window]
-        if not group:
-            break
 
         # distinct speakers, order preserved (dict keeps insertion order)
         speakers = list({t.speaker: None for t in group}.keys())

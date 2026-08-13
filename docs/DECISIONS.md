@@ -58,6 +58,9 @@ Surfaced by a code-review pass; fine at demo scale, flagged for production. This
    calls concurrently (thread pool / async) or batch offline.
 4. **Lazy Bedrock client not synchronized.** Concurrent first calls could each build
    a client (harmless, wasteful). Fix: guard with a lock if it matters.
+5. **`replace_chunks` concurrency.** Two simultaneous re-ingests of the same meeting
+   under READ COMMITTED could duplicate chunks. Fix: serialize per `meeting_id`
+   (advisory lock) or upsert. Fine for single-user demo.
 
 Correctness issues from the same pass were **fixed**: role whitespace trimmed;
 ingest now refuses an empty parse and does an **atomic** delete+insert so a bad

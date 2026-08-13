@@ -64,12 +64,6 @@ def _insert_chunks(cur, meeting_id: str, chunks: list[Chunk], embeddings: list[l
         )
 
 
-def store_chunks(meeting_id: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
-    """Persist each chunk with its embedding (append; does not remove existing rows)."""
-    with _connect() as conn, conn.cursor() as cur:
-        _insert_chunks(cur, meeting_id, chunks, embeddings)
-
-
 def replace_chunks(meeting_id: str, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
     """Atomically replace a meeting's chunks: delete old + insert new in ONE transaction.
 
