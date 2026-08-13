@@ -1,0 +1,42 @@
+{
+  "description": "Adversarial robustness set for the 'tricky' transcript. Each case bakes in a plausible trap; a robust system gives the correct fact AND avoids the bait (or refuses when unanswerable).",
+  "sample": "tricky",
+  "meeting_id": "tricky",
+  "cases": [
+    {
+      "category": "proposed-vs-decided",
+      "question": "What is the launch date?",
+      "correct": "the 27th",
+      "bait": "the 20th, which was only proposed by Tom, not decided"
+    },
+    {
+      "category": "correction",
+      "question": "What is the campaign budget?",
+      "correct": "15,000",
+      "bait": "50,000, the original figure before finance cut it"
+    },
+    {
+      "category": "distractor-number",
+      "question": "What is the launch user target?",
+      "correct": "1,000 new users in the first month",
+      "bait": "320, which was last quarter's beta signups"
+    },
+    {
+      "category": "wrong-attribution",
+      "question": "Who owns the onboarding rebuild?",
+      "correct": "Tom",
+      "bait": "Sara, who only expressed interest in it"
+    },
+    {
+      "category": "negation-undecided",
+      "question": "Which analytics vendor did they choose?",
+      "correct": "no vendor was chosen yet; only that it is NOT Vendor A",
+      "bait": "Vendor A"
+    },
+    {
+      "category": "not-answerable",
+      "question": "What is the price of the mobile app?",
+      "refuse": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+[00:00] Ana (PM): Let's lock the launch date, the budget, and ownership today.
+[00:10] Tom (Eng): I was thinking we could aim for Friday the 20th if testing goes smoothly.
+[00:22] Ana (PM): The 20th is too tight with QA. Let's commit to the 27th instead. That's the date.
+[00:33] Mike (Marketing): For the campaign, I originally budgeted 50,000 dollars.
+[00:41] Mike (Marketing): But after the finance review, the approved figure is 15,000, not the original number.
+[00:52] Ana (PM): Good. On the analytics vendor — we are NOT going with Vendor A, their pricing changed last week.
+[01:04] Tom (Eng): Agreed. We'll evaluate other options next sprint and decide then.
+[01:12] Sara (Design): I'd love to redo the onboarding flow — I've got a lot of ideas for it.
+[01:20] Ana (PM): Actually Tom, can you own the onboarding rebuild? Sara is stretched thin this sprint.
+[01:30] Tom (Eng): Sure, I'll take the onboarding rebuild.
+[01:37] Mike (Marketing): By the way, last quarter we hit 320 signups from the closed beta.
+[01:45] Ana (PM): Right, but our launch target is 1,000 new users in the first month.
+[01:55] Ana (PM): To recap: we launch on the 27th, campaign budget is 15,000, Tom owns the onboarding rebuild, and the target is 1,000 users.
