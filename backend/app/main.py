@@ -31,6 +31,11 @@ app.add_middleware(
 app.include_router(router)
 
 
+@app.get("/")
+def root() -> dict:
+    return {"service": "meeting-intelligence", "health": "/health", "docs": "/docs"}
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
