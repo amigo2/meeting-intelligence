@@ -7,3 +7,4 @@ python-dotenv
 psycopg[binary]
 pgvector
 pytest
+httpx  # FastAPI TestClient dependency (used in tests)
