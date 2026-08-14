@@ -1,0 +1,78 @@
+name: CI/CD
+
+# Test on every push/PR; deploy only when main is green.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  AWS_REGION: eu-west-2
+  ECR_REPO: 624052200235.dkr.ecr.eu-west-2.amazonaws.com/meeting-intelligence
+  ECS_CLUSTER: alameda-prod-cluster
+  ECS_SERVICE: meeting-intelligence
+  S3_BUCKET: meeting-intelligence-frontend-624052200235
+  CLOUDFRONT_DIST_ID: E3P6YGJY4ED0Z5
+  ROLE_ARN: arn:aws:iam::624052200235:role/meeting-intelligence-github-actions
+
+jobs:
+  test:
+    name: Test (gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        run: pip install -r backend/requirements.txt
+      - name: Run tests
+        working-directory: backend
+        # Credential-free tests run; live DB/Bedrock tests auto-skip in CI.
+        run: python -m pytest -q
+
+  deploy:
+    name: Build & deploy
+    needs: test # deploy ONLY if tests pass
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # for OIDC — no static AWS keys
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push backend image
+        run: |
+          docker build --platform linux/amd64 \
+            -t $ECR_REPO:latest -t $ECR_REPO:${{ github.sha }} backend
+          docker push $ECR_REPO:latest
+          docker push $ECR_REPO:${{ github.sha }}
+
+      - name: Deploy backend (force new ECS deployment)
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER --service $ECS_SERVICE \
+            --force-new-deployment --region $AWS_REGION >/dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Deploy frontend (S3 + CloudFront)
+        run: |
+          aws s3 sync frontend/dist s3://$S3_BUCKET --delete
+          aws cloudfront create-invalidation \
+            --distribution-id $CLOUDFRONT_DIST_ID --paths "/*" >/dev/null
