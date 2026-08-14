@@ -25,9 +25,12 @@ data "aws_iam_policy_document" "github_assume" {
       values   = ["sts.amazonaws.com"]
     }
     condition {
+      # This account emits an ID-suffixed OIDC subject
+      # (e.g. repo:owner@<id>/repo@<id>:...), so wildcards absorb the @<id> parts
+      # while still scoping to this owner+repo.
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"] # only this repo can assume the role
+      values   = ["repo:${split("/", var.github_repo)[0]}*/${split("/", var.github_repo)[1]}*:*"]
     }
   }
 }
