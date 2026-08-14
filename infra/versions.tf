@@ -14,4 +14,13 @@ terraform {
 
 provider "aws" {
   region = var.region
+
+  # Tag EVERY resource, so cost can be filtered by project in Cost Explorer
+  # (cost-to-serve attribution). Activate the "Project" tag in Billing to use it.
+  default_tags {
+    tags = {
+      Project   = "meeting-intelligence"
+      ManagedBy = "terraform"
+    }
+  }
 }
