@@ -6,19 +6,50 @@ const MEETING = "demo-1";
 
 type Turn = { q: string; a: AskResult };
 
+// The transcripts the demo can load. `tricky` is adversarial — engineered to bait
+// hallucinations so the grounding guardrail can be seen doing its job.
+const SAMPLES: { id: string; label: string; adversarial?: boolean }[] = [
+  { id: "meeting", label: "Product meeting" },
+  { id: "realestate", label: "Real-estate call" },
+  { id: "tricky", label: "🎯 Tricky transcript", adversarial: true },
+];
+
+// Suggested questions per transcript. For `tricky` these are the six traps from the
+// robustness eval — each has a plausible wrong answer the transcript tempts you toward.
+const SUGGESTIONS: Record<string, string[]> = {
+  meeting: ["When is the launch?", "What did Carla commit to?", "What's the refund bug?"],
+  realestate: [
+    "What did Elena object to?",
+    "What did they agree on?",
+    "What documents does Elena need to gather?",
+  ],
+  tricky: [
+    "What is the launch date?",
+    "What is the campaign budget?",
+    "What is the launch user target?",
+    "Who owns the onboarding rebuild?",
+    "Which analytics vendor did they choose?",
+    "What is the price of the mobile app?",
+  ],
+};
+
 export default function App() {
   const [intel, setIntel] = useState<Intelligence | null>(null);
+  const [loaded, setLoaded] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState<Turn[]>([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isAdversarial = SAMPLES.find((s) => s.id === loaded)?.adversarial ?? false;
+
   async function handleLoad(sample: string) {
     setLoading(true);
     setIntel(null);
     setChat([]);
     setError(null);
+    setLoaded(sample);
     try {
       const res = await loadSample(MEETING, sample);
       setIntel(res.intelligence);
@@ -29,15 +60,14 @@ export default function App() {
     }
   }
 
-  async function handleAsk(e: FormEvent) {
-    e.preventDefault();
-    const q = question.trim();
-    if (!q) return;
+  async function submitQuestion(q: string) {
+    const trimmed = q.trim();
+    if (!trimmed || asking) return;
     setQuestion("");
     setAsking(true);
     try {
-      const a = await ask(MEETING, q);
-      setChat((c) => [...c, { q, a }]);
+      const a = await ask(MEETING, trimmed);
+      setChat((c) => [...c, { q: trimmed, a }]);
     } catch (err) {
       setError(String(err));
     } finally {
@@ -45,24 +75,45 @@ export default function App() {
     }
   }
 
+  function handleAsk(e: FormEvent) {
+    e.preventDefault();
+    submitQuestion(question);
+  }
+
   return (
     <div className="app">
       <header className="topbar">
-        <h1>🎙️ Meeting Intelligence</h1>
+        <div className="brand">
+          <h1>🎙️ Meeting Intelligence</h1>
+          {/* Quality signal: what our offline evals measured. Details in docs/EVALUATION.md */}
+          <a
+            className="evalchip"
+            href="https://github.com/amigo2/meeting-intelligence/blob/main/docs/EVALUATION.md"
+            target="_blank"
+            rel="noreferrer"
+            title="Measured offline: 93% claim-level faithfulness, and 6/6 adversarial traps handled. See docs/EVALUATION.md."
+          >
+            🔬 Evaluated · 93% faithful · 6/6 traps
+          </a>
+        </div>
         <div className="samples">
-          <button onClick={() => handleLoad("meeting")} disabled={loading}>
-            Product meeting
-          </button>
-          <button onClick={() => handleLoad("realestate")} disabled={loading}>
-            Real-estate call
-          </button>
+          {SAMPLES.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => handleLoad(s.id)}
+              disabled={loading}
+              className={loaded === s.id ? "active" : ""}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
       </header>
 
       {error && <p className="error">{error}</p>}
       {loading && <p className="hint">Analysing transcript…</p>}
       {!intel && !loading && (
-        <p className="hint">Load a sample transcript to see the intelligence.</p>
+        <p className="hint">Load a sample transcript to see the intelligence — or try the 🎯 tricky one to test the AI's honesty.</p>
       )}
 
       {intel && (
@@ -92,12 +143,27 @@ export default function App() {
 
           <section className="panel">
             <h2>💬 Ask about this meeting</h2>
+
+            {isAdversarial && (
+              <div className="bait">
+                🎯 <strong>Hallucination test drive.</strong> This transcript is booby-trapped —
+                each question below has a <em>plausible but wrong</em> answer baked in. A grounded
+                system gives the real answer (or refuses). Watch the badge under each reply.
+              </div>
+            )}
+
+            <div className="suggest">
+              <span className="suggest-label">
+                {isAdversarial ? "Try to trick it:" : "Try asking:"}
+              </span>
+              {(SUGGESTIONS[loaded ?? ""] ?? []).map((q) => (
+                <button key={q} className="chip" onClick={() => submitQuestion(q)} disabled={asking}>
+                  {q}
+                </button>
+              ))}
+            </div>
+
             <div className="chat">
-              {chat.length === 0 && !asking && (
-                <p className="hint small">
-                  Try “When is the launch?” or “What did the seller object to?”
-                </p>
-              )}
               {chat.map((t, i) => (
                 <div key={i} className="turn">
                   <div className="bubble q">{t.q}</div>
@@ -109,26 +175,22 @@ export default function App() {
                           ✓ Verified · grounded in transcript
                         </span>
                       ) : (
-                        <span
-                          className="trust warn"
-                          title={
-                            "Unsupported: " +
-                            [
-                              ...t.a.verification.unsupported,
-                              ...t.a.verification.fabricated_citations.map(
-                                (ts) => `invented citation ${ts}`
-                              ),
-                            ].join("; ")
-                          }
-                        >
-                          ⚠ Unverified · may contain unsupported claims
-                        </span>
+                        <div className="trust-block">
+                          <span className="trust warn">⚠ Unverified · some claims unsupported</span>
+                          {t.a.verification.unsupported.map((u, j) => (
+                            <div key={j} className="trust-detail">• {u}</div>
+                          ))}
+                          {t.a.verification.fabricated_citations.map((ts, j) => (
+                            <div key={`c${j}`} className="trust-detail">• invented citation [{ts}]</div>
+                          ))}
+                        </div>
                       ))}
                   </div>
                 </div>
               ))}
               {asking && <div className="hint small">Thinking…</div>}
             </div>
+
             <form className="ask" onSubmit={handleAsk}>
               <input
                 value={question}

@@ -12,7 +12,13 @@ from app.retrieval.store import get_meeting
 router = APIRouter()
 
 DATA = Path(__file__).resolve().parents[2] / "data"  # backend/data (ships in the image)
-SAMPLES = {"meeting": "sample_meeting.txt", "realestate": "sample_realestate.txt"}
+SAMPLES = {
+    "meeting": "sample_meeting.txt",
+    "realestate": "sample_realestate.txt",
+    # Adversarial transcript: engineered with traps (proposed-vs-decided, corrections,
+    # wrong attribution, an unanswerable fact) so the UI can demo grounding/refusal.
+    "tricky": "sample_tricky.txt",
+}
 
 
 class LoadSampleBody(BaseModel):
