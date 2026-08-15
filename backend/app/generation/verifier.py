@@ -24,9 +24,19 @@ _CITATION = re.compile(r"\[[^\]]*\b\d{1,2}:\d{2}\b[^\]]*\]")
 
 
 def _parse_json(raw: str) -> dict:
-    """Extract the first JSON object from a model reply (tolerates prose/fences)."""
+    """Extract the first JSON object from a model reply, or {} if it isn't parseable.
+
+    The verifier runs on the live request path, so a stray prose reply or a response
+    truncated at max_tokens (no closing brace) must never raise — it degrades to {}.
+    """
     text = raw.strip()
-    return json.loads(text[text.find("{") : text.rfind("}") + 1])
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return {}
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
 
 
 # --- deterministic checks (no LLM — cheap, exact, un-gameable) ------------------
@@ -74,11 +84,15 @@ def verify_answer(answer_text: str, sources: list[dict]) -> dict:
     """
     context = "\n\n".join(s["text"] for s in sources)
     verdict = _parse_json(
-        generate(_VERIFY_SYSTEM, f"EVIDENCE:\n{context}\n\nANSWER:\n{answer_text}", max_tokens=400)
+        generate(_VERIFY_SYSTEM, f"EVIDENCE:\n{context}\n\nANSWER:\n{answer_text}", max_tokens=600)
     )
     unsupported = verdict.get("unsupported", []) or []
     fabricated = citation_check(answer_text, sources)["fabricated"]
-    grounded = bool(verdict.get("grounded")) and not unsupported and not fabricated
+    # Deterministic citation check ALWAYS runs. If the LLM verdict was unparseable ({}),
+    # default its axis to grounded (fail-open on the LLM, not on the exact citation check)
+    # so a flaky verifier reply degrades gracefully instead of spuriously self-correcting.
+    llm_grounded = verdict.get("grounded", True)
+    grounded = bool(llm_grounded) and not unsupported and not fabricated
     return {
         "grounded": grounded,
         "unsupported": unsupported,

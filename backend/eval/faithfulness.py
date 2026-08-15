@@ -41,11 +41,20 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 
 
 def _parse_json(raw: str):
-    """Extract the first JSON value from a model reply (tolerates prose/fences)."""
+    """Extract the first JSON value from a model reply, or {} if unparseable.
+
+    Returns {} rather than raising so one malformed judge/decompose reply degrades that
+    single case instead of aborting the whole (slow, expensive) eval run partway through.
+    """
     text = raw.strip()
     start = min((i for i in (text.find("{"), text.find("[")) if i != -1), default=-1)
     end = max(text.rfind("}"), text.rfind("]"))
-    return json.loads(text[start : end + 1])
+    if start == -1 or end <= start:
+        return {}
+    try:
+        return json.loads(text[start : end + 1])
+    except json.JSONDecodeError:
+        return {}
 
 
 # --- LLM steps: decompose then judge each claim --------------------------------

@@ -50,7 +50,10 @@ def answer(meeting_id: str, question: str, k: int = 4, verify: bool = True) -> d
     if not verdict["grounded"]:
         # One bounded self-correction: re-answer with the unsupported claims named, then
         # re-verify. Capped at a single retry so a stubborn case can't loop or blow up cost.
-        flagged = "; ".join(verdict["unsupported"]) or "unsupported statements"
+        issues = verdict["unsupported"] + [
+            f"invented citation [{ts}]" for ts in verdict["fabricated_citations"]
+        ]
+        flagged = "; ".join(issues) or "unsupported statements"
         correction = (
             f"\n\nA previous draft included statements not supported by the excerpts: {flagged}. "
             "Rewrite using ONLY what the excerpts support; omit anything ungrounded. If the "

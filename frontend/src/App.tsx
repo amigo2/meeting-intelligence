@@ -55,6 +55,7 @@ export default function App() {
       setIntel(res.intelligence);
     } catch (e) {
       setError(String(e));
+      setLoaded(null); // don't leave a button highlighted for a load that failed
     } finally {
       setLoading(false);
     }
@@ -63,7 +64,9 @@ export default function App() {
   async function submitQuestion(q: string) {
     const trimmed = q.trim();
     if (!trimmed || asking) return;
-    setQuestion("");
+    // Only clear the input if we're submitting what's in it — a suggestion chip must not
+    // wipe text the user has half-typed.
+    setQuestion((cur) => (cur.trim() === trimmed ? "" : cur));
     setAsking(true);
     try {
       const a = await ask(MEETING, trimmed);
