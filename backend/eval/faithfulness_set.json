@@ -1,0 +1,25 @@
+{
+  "description": "Faithfulness / grounding set. Measures whether each answer's claims are supported by the excerpts the model was actually given (the anti-hallucination check on the GENERATION step). Reference-free: we don't compare to a gold answer, we check groundedness against retrieved context. Unanswerable cases must refuse (0 claims, 0 fabricated citations).",
+  "meetings": [
+    {
+      "meeting_id": "tricky",
+      "sample": "tricky",
+      "questions": [
+        { "question": "What did the team decide about the launch date, budget, and ownership?" },
+        { "question": "What was decided about the analytics vendor?" },
+        { "question": "How many signups did they get last quarter, and what is the launch target?" },
+        { "question": "What is the price of the mobile app?", "unanswerable": true }
+      ]
+    },
+    {
+      "meeting_id": "meeting",
+      "sample": "meeting",
+      "questions": [
+        { "question": "What is the launch date and what has to land first?" },
+        { "question": "What did Carla commit to?" },
+        { "question": "What is the refund flow bug and how long to fix it?" },
+        { "question": "What database did the team choose?", "unanswerable": true }
+      ]
+    }
+  ]
+}

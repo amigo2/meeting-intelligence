@@ -118,6 +118,19 @@ body {
 .bubble.q { background: var(--panel-2); align-self: flex-end; max-width: 85%; }
 .bubble.a { background: rgba(55, 201, 138, 0.10); border: 1px solid rgba(55,201,138,0.25); }
 
+/* Trust badge — the runtime faithfulness gate's verdict, shown under each answer. */
+.trust {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: help;
+}
+.trust.ok { color: var(--green); background: rgba(55, 201, 138, 0.14); border: 1px solid rgba(55,201,138,0.4); }
+.trust.warn { color: var(--amber); background: rgba(242, 181, 69, 0.14); border: 1px solid rgba(242,181,69,0.45); }
+
 .ask { display: flex; gap: 8px; }
 .ask input {
   flex: 1;

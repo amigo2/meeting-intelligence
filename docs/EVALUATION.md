@@ -9,7 +9,7 @@ change. Layered, because an LLM system fails in different places.
 | Layer | Question it answers | How | Where |
 |---|---|---|---|
 | **Retrieval** | Did we fetch the right evidence? | golden set → recall@k, decoy rejection | (planned, mirrors Mighty) |
-| **Grounding** | Is the answer grounded + cited + does it refuse when it should? | LLM-as-judge + deterministic citation check | (planned) |
+| **Faithfulness** ⭐ | Is every claim **supported by the evidence** + cited (no hallucination)? | claim-decompose → NLI judge + deterministic citation check | `backend/eval/faithfulness.py` |
 | **Robustness** ⭐ | Can the system be **fooled**? | adversarial "trap" transcript + LLM-as-judge | `backend/eval/run.py` |
 | **Extraction** | Are decisions/action items right (recall) without invention (precision)? | golden set + judge | (planned) |
 | **Operational** | Is it fast + affordable enough? | latency + cost metrics | (instrument) |
@@ -26,6 +26,61 @@ wrong-attribution · negation/undecided · not-answerable.
 
 Run: `cd backend && python -m eval.run` → prints per-trap PASS/FAIL + a score
 (current: **6/6**).
+
+## Faithfulness / grounding eval (built)
+The direct **anti-hallucination** harness. Robustness asks *"can it be fooled?"*;
+faithfulness asks the sharper question: *is every claim in the answer actually supported
+by the evidence the model was given?* A fluent, confident, **unsupported** sentence is a
+hallucination even when it happens to be true — so we grade **groundedness, not correctness**.
+
+Pipeline (`backend/eval/faithfulness.py`) — deliberately isolates the **generation** step:
+1. Ask the real system → `{answer, sources}`. Faithfulness is judged against **those
+   retrieved excerpts**, not the full transcript — *did we retrieve well?* is the retrieval
+   layer's job; this layer asks *given what it retrieved, did it stay grounded?*
+2. **Decompose** the answer into atomic claims (one assertion each).
+3. **NLI judge** each claim vs the sources → `SUPPORTED` / `UNSUPPORTED` / `CONTRADICTED`
+   (the latter two = hallucinations).
+4. **Deterministic citation check** (no LLM): every non-refusal answer must cite a
+   `[speaker, timestamp]`, and every cited timestamp must exist in a retrieved chunk — a
+   cited timestamp present in **no** source is a **fabricated citation**, a machine-detectable
+   hallucination the judge can't rationalise away.
+5. **Unanswerable** questions must refuse (0 claims, 0 fabricated citations).
+
+**Metrics emitted:** macro faithfulness (mean supported-claim ratio), hallucinated-claim
+count, fabricated-citation count, uncited-answer count, refusal errors.
+
+Run: `cd backend && python -m eval.faithfulness`.
+**Current (8 answers, 2 transcripts):** macro **93.3%** faithful · **0** fabricated citations
+· **0** uncited · **0** refusal errors (both unanswerable Qs refused).
+
+> **A finding it caught (kept, not gamed).** One answer scored 60%: asked *"what has to land
+> **first**?"*, the model echoed the loaded word "first" and listed the refund fix + usability
+> session as ordered — but the transcript only says **both** must land this week, with **no
+> ordering**. The judge correctly flagged the two "…has to land first" claims as UNSUPPORTED.
+> Root cause: the answer **accepted a false presupposition** in the question. The fix belongs in
+> the *system prompt* (reject loaded questions), **not** in weakening the judge — tuning an eval
+> until it goes green is how you lie to yourself. Logged as a finding for the next prompt iteration.
+
+## Prevention: the runtime faithfulness gate (built)
+Evals **measure** hallucination offline; the gate **prevents** it at request time — the
+seatbelt to the eval's crash test. Lives in [`app/generation/verifier.py`](../backend/app/generation/verifier.py),
+wired into `answer(..., verify=True)`:
+
+1. Generate the answer as normal.
+2. **Verify** it against the retrieved excerpts — **one** LLM call for the whole answer
+   (not per-claim like the eval) + the free deterministic citation check → a verdict
+   `{grounded, unsupported, fabricated_citations}`.
+3. If not grounded, **self-correct once**: regenerate with the unsupported claims named,
+   then re-verify. Capped at a single retry (bounded latency/cost, no loops).
+4. The verdict rides back in the API response; the UI shows a **trust badge**
+   (✓ grounded / ⚠ unverified).
+
+**Design trade-off (deliberate):** the gate is *coarser* than the eval — one call vs.
+per-claim — so it reliably catches blatant hallucinations (wrong dates, invented numbers,
+fabricated citations) while trading away some sensitivity to subtle cases the microscope
+catches. That ~13× cost saving is what makes it affordable on live traffic; for a
+high-stakes deployment you'd dial granularity up. The deterministic citation check is the
+**same code** the eval uses (shared in `verifier.py`), so test and guard can't drift.
 
 ## Metrics to track
 

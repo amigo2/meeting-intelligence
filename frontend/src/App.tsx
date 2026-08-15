@@ -101,7 +101,30 @@ export default function App() {
               {chat.map((t, i) => (
                 <div key={i} className="turn">
                   <div className="bubble q">{t.q}</div>
-                  <div className="bubble a">{t.a.answer}</div>
+                  <div className="bubble a">
+                    {t.a.answer}
+                    {t.a.verification &&
+                      (t.a.verification.grounded ? (
+                        <span className="trust ok" title="Every claim is supported by the transcript.">
+                          ✓ Verified · grounded in transcript
+                        </span>
+                      ) : (
+                        <span
+                          className="trust warn"
+                          title={
+                            "Unsupported: " +
+                            [
+                              ...t.a.verification.unsupported,
+                              ...t.a.verification.fabricated_citations.map(
+                                (ts) => `invented citation ${ts}`
+                              ),
+                            ].join("; ")
+                          }
+                        >
+                          ⚠ Unverified · may contain unsupported claims
+                        </span>
+                      ))}
+                  </div>
                 </div>
               ))}
               {asking && <div className="hint small">Thinking…</div>}

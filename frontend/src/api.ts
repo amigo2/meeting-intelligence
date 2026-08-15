@@ -16,7 +16,13 @@ export type Source = {
   end: string;
   similarity: number;
 };
-export type AskResult = { answer: string; sources: Source[] };
+// The runtime faithfulness gate's verdict (absent on refusals / un-verified answers).
+export type Verification = {
+  grounded: boolean;
+  unsupported: string[];
+  fabricated_citations: string[];
+};
+export type AskResult = { answer: string; sources: Source[]; verification?: Verification };
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
