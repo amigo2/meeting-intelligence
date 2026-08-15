@@ -182,9 +182,16 @@ Surfaced by AI code-review passes; correctness issues fixed, these documented:
 
 ---
 
-## Screenshots / video
-> ✍️ Add 2–3 screenshots (intelligence cards + a cited Q&A) and, if time, a short screen-recording.
-```
-![Intelligence cards](docs/screenshot-intelligence.png)
-![Grounded Q&A](docs/screenshot-qa.png)
-```
+## Screenshots
+
+**1 — Extracted intelligence: summary, decisions, action items (owner + task + due).**
+![Intelligence cards](docs/screenshots/01-intelligence.png)
+
+**2 — Grounded Q&A: every claim carries a `[speaker, timestamp]` citation, and the runtime
+faithfulness gate stamps the answer `✓ Verified · grounded in transcript`.**
+![Grounded Q&A](docs/screenshots/02-grounded-qa.png)
+
+**3 — "Hallucination test drive": an adversarial transcript with baited questions. Asked
+*"Who owns the onboarding rebuild?"* (the bait answer is "Sara", who only expressed interest),
+the system correctly answers **Tom** and verifies it — resisting the trap instead of guessing.**
+![Hallucination test drive](docs/screenshots/03-hallucination-test.png)
