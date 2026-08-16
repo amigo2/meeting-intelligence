@@ -23,7 +23,9 @@ app = FastAPI(title="Meeting Intelligence", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    # Any localhost port for local dev (Vite may fall back off 5173). Prod is same-origin
+    # via CloudFront, so this list is irrelevant in production.
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_methods=["*"],
     allow_headers=["*"],
 )

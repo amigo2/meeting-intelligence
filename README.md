@@ -1,3 +1,4 @@
+
 # 🎙️ Meeting Intelligence System
 
 Analyses meeting transcripts (speaker + timestamp) and answers questions about
@@ -5,15 +6,15 @@ discussions, **decisions**, and **action items** — with grounded, **cited** an
 and cite-or-refuse guardrails. Built as a reusable transcript-intelligence engine
 (meetings, real-estate client calls, voice bookings).
 
-> Newpage Lead FDE assignment — Option 3.
-> **Live demo:** deployed to AWS (Fargate + Aurora pgvector + Bedrock, behind CloudFront).
-> **Stack:** FastAPI · React/TypeScript · AWS Bedrock (Claude + Titan) · pgvector on
-> Aurora Postgres · Docker · Fargate · Terraform · GitHub Actions.
+Newpage Lead FDE assignment — Option 3.
 
-<!-- ✍️ NOTE TO SELF: the reviewers want MY thoughts, not an LLM's output. The
-     technical sections below document the real system; the reasoning/"thoughts"
-     sections (Key decisions, How I used AI tools, What I'd do differently) — pass
-     through my own voice before submitting. -->
+🔗 **Live demo:** **https://ddrphjsd31mv9.cloudfront.net/**
+&nbsp;&nbsp;&nbsp;&nbsp;Deployed to AWS — Fargate + Aurora (pgvector) + Bedrock, behind CloudFront.
+
+🛠️ **Stack:** FastAPI · React/TypeScript · AWS Bedrock (Claude + Titan) · pgvector on Aurora Postgres · Docker · Fargate · Terraform · GitHub Actions.
+
+Acknmoewgemnt i have rrehuse somehow a lot of infra Terraform and reuse my own VPC, so AWS deployment has not been a tedious task but a routine lovely one.
+
 
 ---
 
@@ -59,18 +60,9 @@ terraform destroy               # tear it all down
 
 ## Architecture overview
 
-```
-                      React + TypeScript (Vite)  ── CloudFront (HTTPS) ──┐
-                                                                         │
-Internet ─ CloudFront ─ /meetings/*, /health ─► ALB ─► Fargate (FastAPI)─┤
-                                                          │              │
-                        ┌─────────────────────────────────┼──────────────┘
-                  Bedrock Titan (embed)   Bedrock Claude (generate/extract)
-                                          │
-   INGEST:  transcript ─► parse (speaker/timestamp) ─► chunk (sliding window)
-            ─► embed (Titan) ─► pgvector (Aurora)     + extract decisions/action items
-   QUERY:   question ─► embed ─► cosine search (pgvector) ─► Claude ─► cited answer
-```
+![Architecture](docs/architecture-diagram.png)
+
+
 
 - **Clean architecture:** business logic in modules (`ingestion/`, `retrieval/`,
   `extraction/`, `generation/`); FastAPI routes are thin wrappers. Core is unit-testable
@@ -81,6 +73,10 @@ Internet ─ CloudFront ─ /meetings/*, /health ─► ALB ─► Fargate (Fast
 ---
 
 ## RAG / LLM approach & decisions
+
+![RAG query pipeline](docs/rag-pipeline.png)
+
+
 
 | Choice | Decision | Why (considered → chosen) |
 |---|---|---|
@@ -146,20 +142,49 @@ retrieval/grounding eval layer (robustness layer built). All flagged with fix pa
 
 ## How I used AI tools
 
-> ✍️ **WRITE THIS IN MY OWN VOICE** — reviewers explicitly want my do's/don'ts, not prose.
-> Points to cover (in my words):
-> - Rules file (`AGENTS.md`) that keeps AI output consistent + maintainable across sessions.
-> - Small, reviewable, incremental commits — the history shows *how* I built it.
-> - Ran **AI code-review agents** (single + parallel multi-lens) then **triaged** findings —
->   fixed real bugs (atomic ingest, dead code), documented edge cases, **rejected a false
->   positive**. AI accelerates; I decide.
-> - Have AI write tests, then verify they fail/pass meaningfully.
-> - Don't ship code I can't explain in review; don't put logic in routes or hardcode secrets.
+I use Claude with VS Code.
+With AGENTS.md and rules I'm constantly updating, I keep the AI tight — from PR to deployment.
+Been harnessing rules from other successfully deployed projects.
+
+I have already experienced glitches in production.
+
+A thing I learned about hallucination while building this: working with an AI agent over a
+long session, I noticed it tends to introduce bugs unintentionally. It carries the whole
+context, and with that momentum it writes code that *looks* right but isn't — to me this is
+the same thing as a hallucination: the model is confident, but wrong. It got noticeably worse
+on bigger changes.
+
+What caught those bugs was a **fresh agent with no context**. Because it hadn't been part of
+the conversation, it wasn't anchored to the same assumptions, so it spotted the mistakes the
+in-context agent had made. Claude Code has a tool for exactly this — `/code-review`, either a
+paid heavier "ultra" pass or a lighter "medium" one. I ran the medium review on my own changes
+and it caught a real one: the answer verifier could crash the live endpoint on a malformed
+model reply. I fixed it and kept the finding.
+
+I keep the same kind of rules for AWS — learned the hard way on past projects. The AI follows
+them or the infra it writes isn't safe or cheap; in this repo the Terraform enforces them.
+
+My do / don't from this:
+- **Do** have a clean-context reviewer check AI-written code before trusting it — especially on large diffs.
+- **Do** keep commits small and reviewable — the git history shows *how* I built it, not just the result.
+- **Do** have the AI write tests, then check they actually fail/pass for the right reason.
+- **Do** make the AI use IAM roles and OIDC — never static keys — with least-privilege IAM and security groups.
+- **Do** keep everything in-region (eu-west-2) for EU data, secrets in Secrets Manager, and cost tags on every resource.
+- **Don't** let the same agent that wrote the code be the only one to review it; it shares its own blind spot.
+- **Don't** hardcode secrets or bury logic in the routes — AI will do both if I let it.
+
+
+
+
+
+
 
 ---
 
 ## Known limitations (deliberate, at demo scale)
-Surfaced by AI code-review passes; correctness issues fixed, these documented:
+These came out of the AI code-review passes. **The correctness-critical ones I fixed** (atomic
+re-ingest, dead code, a live-path crash on malformed replies); **the ones below are deliberate
+trade-offs** — correct and fast enough at demo scale, with the production fix noted for each:
 - **Filtered vector search:** HNSW ranks globally then filters by `meeting_id`, so at large
   scale a scoped query could miss best chunks — fix with `hnsw.iterative_scan` or per-tenant
   partial indexes.

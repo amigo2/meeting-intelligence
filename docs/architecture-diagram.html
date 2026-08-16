@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Meeting Intelligence — Architecture</title>
+<style>
+  :root {
+    --ink: #1a2233;
+    --muted: #616c81;
+    --line: #d7dced;
+    --card: #ffffff;
+    --page: #eaedf4;
+    --slate: #46506a;   --slate-bg: #eef1f7;
+    --blue: #3a6df0;    --blue-bg: #e9f0ff;
+    --violet: #6a4fd0;  --violet-bg: #efeaff;
+    --teal: #0e8a86;    --teal-bg: #e2f5f3;
+    --green: #157f4f;   --green-bg: #e6f5ed;
+    --amber: #a9700a;   --amber-bg: #f9efd8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 40px 20px; -webkit-font-smoothing: antialiased;
+  }
+  /* This is the frame you screenshot — the white card. */
+  .sheet {
+    max-width: 1040px; margin: 0 auto; background: var(--card);
+    border: 1px solid var(--line); border-radius: 18px; padding: 34px 38px 40px;
+    box-shadow: 0 10px 40px rgba(26,34,51,0.08);
+  }
+  .head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+  h1 { font-size: 1.5rem; letter-spacing: -0.02em; margin: 0; }
+  .head .sub { color: var(--muted); font-size: 0.85rem; }
+
+  .eyebrow {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em;
+    font-weight: 700; color: var(--muted); margin: 28px 0 12px;
+  }
+
+  .box {
+    border: 1.5px solid; border-radius: 11px; padding: 11px 15px; background: var(--card);
+    display: inline-flex; flex-direction: column; gap: 2px; min-width: 0;
+  }
+  .box .t { font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+  .box .s { font-size: 0.74rem; color: var(--muted); white-space: nowrap; }
+  .box.slate  { border-color: #c4ccdd; background: var(--slate-bg); }
+  .box.blue   { border-color: #b9ccfb; background: var(--blue-bg); }
+  .box.blue .t { color: var(--blue); }
+  .box.violet { border-color: #cdc0f5; background: var(--violet-bg); }
+  .box.violet .t { color: var(--violet); }
+  .box.teal   { border-color: #b3e2df; background: var(--teal-bg); }
+  .box.teal .t { color: var(--teal); }
+
+  .arrow { color: var(--muted); font-size: 1.2rem; line-height: 1; flex: 0 0 auto; }
+  .arrow .lbl { display: block; font-size: 0.62rem; color: var(--muted); margin-bottom: 1px; white-space: nowrap; letter-spacing: 0.02em; }
+
+  .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* deployment topology */
+  .topo { display: grid; gap: 16px; }
+  .branch { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .stub { width: 22px; height: 1.5px; background: var(--line); flex: 0 0 auto; }
+  .fork { display: grid; gap: 10px; }
+
+  .deps { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+  .downfrom { color: var(--muted); font-size: 0.7rem; margin: 6px 0 0 6px; }
+
+  /* pipelines */
+  .pipe { border: 1px solid var(--line); border-radius: 13px; padding: 16px 18px; margin-bottom: 14px; background: #fbfcfe; }
+  .pipe .name { font-weight: 800; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; display: inline-block; margin-bottom: 12px; }
+  .pipe.ingest .name { color: var(--green); background: var(--green-bg); }
+  .pipe.query  .name { color: var(--blue); background: var(--blue-bg); }
+  .chip {
+    border: 1.5px solid var(--line); border-radius: 9px; padding: 8px 12px; background: var(--card);
+    font-size: 0.83rem; font-weight: 600; white-space: nowrap;
+  }
+  .chip .k { color: var(--muted); font-weight: 500; }
+  .chip.accent-g { border-color: #bfe4cf; }
+  .chip.accent-b { border-color: #bcd0fb; }
+  .chip.accent-v { border-color: #d2c7f6; }
+  .chip.accent-t { border-color: #b7e3e0; }
+
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.75rem; color: var(--muted); }
+  .legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: middle; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="head">
+      <h1>🎙️ Meeting Intelligence — Architecture</h1>
+      <span class="sub">FastAPI · React/TS · AWS Bedrock · pgvector/Aurora · Fargate · Terraform</span>
+    </div>
+
+    <!-- ============ DEPLOYMENT TOPOLOGY ============ -->
+    <div class="eyebrow">Deployment on AWS (eu-west-2, London)</div>
+    <div class="topo">
+      <div class="branch">
+        <div class="box slate"><span class="t">🌐 Internet</span><span class="s">users</span></div>
+        <span class="arrow">→</span>
+        <div class="box slate"><span class="t">☁️ CloudFront</span><span class="s">HTTPS · edge CDN</span></div>
+        <span class="stub"></span>
+        <div class="fork">
+          <div class="branch">
+            <span class="arrow"><span class="lbl">static site</span>→</span>
+            <div class="box slate"><span class="t">🪣 S3</span><span class="s">React + TypeScript (Vite)</span></div>
+          </div>
+          <div class="branch">
+            <span class="arrow"><span class="lbl">/meetings/* · /health</span>→</span>
+            <div class="box slate"><span class="t">⚖️ ALB</span><span class="s">load balancer</span></div>
+            <span class="arrow">→</span>
+            <div class="box blue"><span class="t">🐳 Fargate</span><span class="s">FastAPI container</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="downfrom">↳ Fargate calls (in-AWS, via IAM task role — no static keys):</div>
+        <div class="deps">
+          <div class="box violet"><span class="t">🤖 Bedrock — Claude</span><span class="s">generate · extract</span></div>
+          <div class="box violet"><span class="t">🧠 Bedrock — Titan V2</span><span class="s">embeddings · 1024-d</span></div>
+          <div class="box teal"><span class="t">🗄️ Aurora PostgreSQL</span><span class="s">+ pgvector (HNSW)</span></div>
+          <div class="box slate"><span class="t">🔐 Secrets Manager</span><span class="s">DB URL at runtime</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ DATA-FLOW PIPELINES ============ -->
+    <div class="eyebrow" style="margin-top:34px">Data flow — the two pipelines</div>
+
+    <div class="pipe ingest">
+      <span class="name">Ingest</span>
+      <div class="row">
+        <div class="chip">📄 transcript</div>
+        <span class="arrow">→</span>
+        <div class="chip">parse <span class="k">speaker/timestamp</span></div>
+        <span class="arrow">→</span>
+        <div class="chip">chunk <span class="k">sliding window</span></div>
+        <span class="arrow">→</span>
+        <div class="chip accent-v">embed <span class="k">Titan</span></div>
+        <span class="arrow">→</span>
+        <div class="chip accent-t">pgvector <span class="k">Aurora</span></div>
+        <span class="arrow"><span class="lbl">separate pass</span>⇒</span>
+        <div class="chip accent-v">extract <span class="k">decisions · action items</span></div>
+      </div>
+    </div>
+
+    <div class="pipe query">
+      <span class="name">Query</span>
+      <div class="row">
+        <div class="chip">❓ question</div>
+        <span class="arrow">→</span>
+        <div class="chip accent-v">embed <span class="k">Titan</span></div>
+        <span class="arrow">→</span>
+        <div class="chip accent-t">cosine search <span class="k">pgvector</span></div>
+        <span class="arrow">→</span>
+        <div class="chip accent-v">Claude <span class="k">grounded</span></div>
+        <span class="arrow"><span class="lbl">verify gate</span>→</span>
+        <div class="chip accent-b">✓ cited answer</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#46506a"></span>Edge / infra</span>
+      <span><span class="dot" style="background:#3a6df0"></span>Compute (FastAPI)</span>
+      <span><span class="dot" style="background:#6a4fd0"></span>Bedrock (models)</span>
+      <span><span class="dot" style="background:#0e8a86"></span>Data (pgvector/Aurora)</span>
+    </div>
+  </div>
+</body>
+</html>
