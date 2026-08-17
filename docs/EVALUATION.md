@@ -8,11 +8,22 @@ change. Layered, because an LLM system fails in different places.
 
 | Layer | Question it answers | How | Where |
 |---|---|---|---|
-| **Retrieval** | Did we fetch the right evidence? | golden set → recall@k, decoy rejection | (planned, mirrors Mighty) |
+| **Retrieval** | Did we fetch the right evidence? | golden set → recall@k, decoy rejection | (planned) |
 | **Faithfulness** ⭐ | Is every claim **supported by the evidence** + cited (no hallucination)? | claim-decompose → NLI judge + deterministic citation check | `backend/eval/faithfulness.py` |
 | **Robustness** ⭐ | Can the system be **fooled**? | adversarial "trap" transcript + LLM-as-judge | `backend/eval/run.py` |
 | **Extraction** | Are decisions/action items right (recall) without invention (precision)? | golden set + judge | (planned) |
 | **Operational** | Is it fast + affordable enough? | latency + cost metrics | (instrument) |
+
+## The judge — where grading fires
+Every "graded by an LLM" step (robustness, faithfulness, and the runtime gate) calls:
+- **Claude (Sonnet 4.5) via AWS Bedrock** — the *same* model + in-EU stack used to answer,
+  through `app/core/bedrock.py::generate()`. No third-party judge service; nothing leaves AWS.
+- The judge returns a **strict JSON verdict** (not prose), so results are machine-checkable:
+  two-axis (`correct` AND `avoided_bait`) for robustness; NLI
+  (`SUPPORTED / UNSUPPORTED / CONTRADICTED`) for faithfulness.
+- **Honest caveat:** the same model family judges its own output. Fine at demo scale; for high
+  stakes I'd use a *different/stronger* judge model plus a **second verifier** (adversarial
+  verification) to kill false positives.
 
 ## Robustness eval (built)
 `sample_tricky.txt` is engineered with 6 traps; each case has a `correct` fact and a
@@ -101,10 +112,13 @@ high-stakes deployment you'd dial granularity up. The deterministic citation che
 
 ## Discipline
 - **Consistency:** run evals N times; track pass-rate, not a single run (LLMs vary; temp 0 helps but isn't a guarantee).
-- **Regression gate:** run the suite in CI on every prompt/model change; block on a drop.
+- **Regression gate:** unit tests + the deterministic citation checks run in CI today; the
+  LLM-judge evals run as a **manual** gate (they need live Bedrock). Wiring them into CI on
+  every prompt/model change, blocking on a drop, is the next step.
 - **Adversarial verification:** for high stakes, a second judge re-checks the first judge's verdict to kill false positives.
 
 ## One-liner
-"I test that it can't be fooled, not just that it answers — adversarial traps graded
-by an LLM-as-judge on correctness AND bait-avoidance, run for consistency and gated
-in CI. Plus retrieval/grounding/extraction layers and operational latency/cost metrics."
+"I test that it can't be fooled, not just that it answers — adversarial traps graded by an
+LLM-as-judge (Claude on Bedrock) on correctness AND bait-avoidance, plus a claim-level
+faithfulness eval and a live verify gate. Unit + citation checks run in CI; the LLM evals are
+a manual gate today (CI-gating next)."

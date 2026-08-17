@@ -13,7 +13,7 @@ Newpage Lead FDE assignment — Option 3.
 
 🛠️ **Stack:** FastAPI · React/TypeScript · AWS Bedrock (Claude + Titan) · pgvector on Aurora Postgres · Docker · Fargate · Terraform · GitHub Actions.
 
-Acknmoewgemnt i have rrehuse somehow a lot of infra Terraform and reuse my own VPC, so AWS deployment has not been a tedious task but a routine lovely one.
+**Acknowledgment:** I reused a lot of my own Terraform infra and my existing VPC, so the AWS deployment wasn't a tedious task — more a routine, enjoyable one.
 
 
 ---
@@ -76,7 +76,15 @@ terraform destroy               # tear it all down
 
 ![RAG query pipeline](docs/rag-pipeline.png)
 
+**Where each step lives in code:**
+- **Parse / chunk** (ingest) → [`ingestion/parser.py`](backend/app/ingestion/parser.py) · [`ingestion/chunker.py`](backend/app/ingestion/chunker.py)
+- **Embed** (Titan) → [`core/bedrock.py`](backend/app/core/bedrock.py)
+- **Retrieve** (pgvector, cosine) → [`retrieval/store.py`](backend/app/retrieval/store.py) · [`retrieval/retriever.py`](backend/app/retrieval/retriever.py)
+- **Generate** (cite-or-refuse) → [`generation/answerer.py`](backend/app/generation/answerer.py)
+- **Verify gate** (grounding guard) → [`generation/verifier.py`](backend/app/generation/verifier.py)
+- **Extraction** (summary / decisions / actions) → [`extraction/extractor.py`](backend/app/extraction/extractor.py)
 
+### Key decisions (considered → chosen)
 
 | Choice | Decision | Why (considered → chosen) |
 |---|---|---|
@@ -96,15 +104,38 @@ terraform destroy               # tear it all down
 
 Evals are first-class here — hands-on harnesses, not theory. (Details in `docs/EVALUATION.md`.)
 
-- **Robustness eval** (`backend/eval/run.py`) — an **adversarial** transcript
-  (`sample_tricky.txt`) with 6 traps (proposed-vs-decided, correction, distractor number,
-  wrong attribution, negation, not-answerable). Each answer is graded by an **LLM-as-judge**
-  on two axes — *correct* AND *avoided the bait* — because string matching fails when the
-  model *mentions* a trap to dismiss it. **Current score: 6/6.**
-- **Deterministic + unit tests** (`backend/tests/`) — parser, chunker, store round-trip,
-  empty-transcript guard. Live DB/Bedrock tests auto-skip without creds.
-- **Metrics to track** (documented): retrieval recall@k, grounding/citation rate, refusal
-  accuracy, extraction recall/precision, latency p95/p99, cost per query.
+**How answers are graded — LLM-as-judge:**
+- A second **Claude call, via AWS Bedrock** (same in-EU stack as answering — no external judge
+  service, nothing leaves AWS), scores each answer.
+- It returns a **strict JSON verdict**, not prose, so grading is machine-checkable — string
+  matching fails here, because the model may *mention* a trap only to dismiss it.
+- *Honest caveat:* the same model family judges its own output — fine at demo scale; high-stakes
+  would use a different/stronger judge plus a second verifier.
+
+**The eval layers** (each says how to run it):
+- **Robustness eval — the adversarial one** (`backend/eval/run.py`) — a booby-trapped transcript
+  (`sample_tricky.txt`) with 6 traps (proposed-vs-decided, correction, distractor number, wrong
+  attribution, negation, not-answerable). Asks *"can it be fooled?"*; graded on two axes — *correct*
+  AND *avoided the bait*. **Score: 6/6.**
+  → Run: `cd backend && python -m eval.run` *(needs live DB + Bedrock)*
+- **Faithfulness eval ⭐ — the anti-hallucination one** (`backend/eval/faithfulness.py`) — asks
+  *"is every claim grounded?"*: decompose each answer into atomic claims, judge each against the
+  retrieved evidence (`SUPPORTED / UNSUPPORTED / CONTRADICTED`) + a deterministic fabricated-citation
+  check. **Macro 93.3% faithful, 0 fabricated citations.**
+  → Run: `cd backend && python -m eval.faithfulness` *(needs live DB + Bedrock)*
+- **Runtime verify gate ⭐** (`app/generation/verifier.py`) — not a script; it runs **live on every
+  answer**, verifying and **self-correcting once** if ungrounded (✓/⚠ trust badge in the UI).
+  Toggle with `answer(verify=…)`.
+- **Unit tests** (`backend/tests/`) — parser, chunker, store round-trip, empty-transcript guard,
+  and the deterministic citation check.
+  → Run: `cd backend && python -m pytest -q` — **these run in CI**; live DB/Bedrock tests auto-skip.
+- **Metrics to track:** retrieval recall@k, grounding/citation rate, refusal accuracy, extraction
+  recall/precision, latency p95/p99, cost per query.
+
+> **Two tiers, on purpose:** the **unit tests run in CI** on every push (fast, deterministic, free);
+> the **two LLM evals run manually** (they need live Bedrock and vary run-to-run) — CI-gating them
+> is the next step.
+
 
 ---
 
@@ -185,25 +216,47 @@ My do / don't from this:
 These came out of the AI code-review passes. **The correctness-critical ones I fixed** (atomic
 re-ingest, dead code, a live-path crash on malformed replies); **the ones below are deliberate
 trade-offs** — correct and fast enough at demo scale, with the production fix noted for each:
-- **Filtered vector search:** HNSW ranks globally then filters by `meeting_id`, so at large
-  scale a scoped query could miss best chunks — fix with `hnsw.iterative_scan` or per-tenant
-  partial indexes.
-- **No connection pooling** (add `psycopg_pool` for production concurrency).
-- **Sequential embeddings** (parallelise for large transcripts).
-- **`replace_chunks` concurrency** — two simultaneous re-ingests of one meeting could duplicate
-  (serialise per meeting / advisory lock).
-- **Lazy Bedrock client** not lock-guarded (harmless; guard if needed).
+- **Filtered vector search.** The HNSW index finds the nearest chunks across *all* meetings
+  first, then filters down to this `meeting_id` — so with many meetings a scoped search could
+  miss that meeting's best chunks. Fine with a handful of meetings; at scale, fix with
+  `hnsw.iterative_scan` or a per-tenant partial index.
+- **No connection pooling.** Every DB call opens and closes its own connection. Under heavy
+  concurrency that's wasteful and can exhaust the connection limit — add `psycopg_pool` to
+  reuse a set of open connections in production.
+- **Sequential embeddings.** Titan embeds one chunk per call and we loop them one at a time,
+  which is slow for a long transcript. Fire the calls in parallel to speed up ingest.
+- **`replace_chunks` concurrency.** Re-ingesting a meeting deletes the old chunks then inserts
+  new ones; two simultaneous re-ingests of the *same* meeting could interleave and duplicate.
+  Serialise per meeting with a Postgres advisory lock.
+- **Lazy Bedrock client not lock-guarded.** The client is created on first use, so two requests
+  hitting that exact instant could both create one. Harmless (an extra client is cheap and
+  discarded) — add a lock only if being strict.
 
 ---
 
 ## What I'd do differently / next
 
-> ✍️ **MY VOICE.** Candidate points:
-> - Add the retrieval + grounding eval layers (recall@k, LLM-judge faithfulness) and gate CI on them.
-> - Rerank step (retrieve-then-rerank) to sharpen retrieval.
-> - Voice → transcript (Whisper / AWS Transcribe) — the Option 3 bonus.
-> - Domain-configurable extraction schema (meeting vs sales-call lens).
-> - Connection pooling, parallel embeddings, HTTPS on the ALB, auth + multi-tenant.
+- **Finish the eval stack and gate CI on it.** I already built the faithfulness eval (grading
+  each claim against the retrieved evidence) and a runtime verify gate. Next is a *retrieval*
+  eval — recall@k on a golden set, i.e. "did we fetch the right chunks?" — and running the whole
+  suite in CI so a prompt or model change that drops quality fails the build. Bad retrieval is
+  the main upstream cause of hallucination, so I'd measure it directly.
+- **Add a rerank step (retrieve-then-rerank).** Retrieval is currently a single cosine pass
+  (top-4). I'd pull a wider set (~20) then rerank with a cross-encoder that scores the question
+  and each chunk *together* — more accurate relevance, so sharper answers. It costs a little
+  latency, but only on the candidates, not the whole corpus.
+- **Voice → transcript (the Option 3 bonus).** Record or upload audio → AWS Transcribe (speaker
+  labels + timestamps, stays in-EU) → feed the text straight into the existing `ingest()`. The
+  pipeline already accepts raw transcript text, so it slots in cleanly — I deferred it
+  deliberately to keep scope tight rather than rush a half-baked version.
+- **Domain-configurable extraction.** Extraction is a fixed "meeting" lens today
+  (summary/decisions/actions). I'd make the schema swappable per domain — a sales call would
+  extract objections, agreed terms, price — which makes it a genuinely reusable transcript
+  engine (my real-estate use case).
+- **Production hardening.** Connection pooling and parallel embeddings for concurrency/speed;
+  HTTPS on the ALB (CloudFront already gives users HTTPS — this makes it end-to-end); and the
+  big one — **auth + multi-tenant** so each client's data is isolated, which is non-negotiable
+  for a health/GDPR product.
 
 ---
 
